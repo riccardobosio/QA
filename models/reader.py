@@ -1,7 +1,6 @@
 # Followed this tutorial to write the code https://huggingface.co/course/chapter7/7?fw=tf
 
-from tensorflow import keras
-import tensorflow as tf
+
 from transformers import BertTokenizer, TFBertForQuestionAnswering, TFAutoModelForQuestionAnswering
 from datasets import load_dataset
 from transformers import AutoTokenizer
@@ -13,6 +12,7 @@ from transformers import DefaultDataCollator
 from transformers import create_optimizer
 from transformers.keras_callbacks import PushToHubCallback
 import tensorflow as tf
+import argparse
 
 
 def compute_metrics(start_logits, end_logits, features, examples, max_answer_length=30, n_best=20):
@@ -67,12 +67,12 @@ def compute_metrics(start_logits, end_logits, features, examples, max_answer_len
 
 class BERTModule(tf.Module):
 
-    def __init__(self, model_name):
+    def __init__(self, model_path, tokenizer_path='bert-base-cased'):
 
         #self.model = TFBertForQuestionAnswering.from_pretrained(model_name)
-        self.model = TFAutoModelForQuestionAnswering.from_pretrained(model_name)
+        self.model = TFAutoModelForQuestionAnswering.from_pretrained(model_path)
         #self.tokenizer = BertTokenizer.from_pretrained(model_name)
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
 
         #controllare se serve!!
         self.all_results=[]
@@ -233,8 +233,10 @@ class BERTModule(tf.Module):
         # Train in mixed-precision float16
         tf.keras.mixed_precision.set_global_policy("mixed_float16")
 
+        # add callbacks
+        checkpoint = tf.keras.callbacks.ModelCheckpoint("./model.hdf5", monitor='val_loss', save_best_only=True, verbose=1)
         # We're going to do validation afterwards, so no validation mid-training
-        self.model.fit(self.tf_train_dataset, epochs=num_train_epochs) #, callbacks=[callback])
+        self.model.fit(self.tf_train_dataset, epochs=num_train_epochs, callbacks=[checkpoint])
 
         predictions = self.model.predict(self.tf_eval_dataset)
         compute_metrics(
@@ -250,7 +252,16 @@ class BERTModule(tf.Module):
 
 
 if __name__ == "__main__":
-    bert_module = BERTModule("bert-base-cased")
+    parser = argparse.ArgumentParser(description='Define model parameters.')
+    parser.add_argument('--finetune', type=bool, action='store_true',
+                        help='Flag to decide if a finetuning on Squad is needed.')
+    parser.add_argument('--model_path', type=str, default='bert-base-cased',
+                        help='Pass the finetuned model path if you do not want to do it again.')
+
+    args = parser.parse_args()
+    bert_module = BERTModule(args.model_path)
     #bert_module.print_data()
     #bert_module.validate()
-    bert_module.train()
+    if args.finetune:
+        bert_module.train()
+    bert_module.validate()
