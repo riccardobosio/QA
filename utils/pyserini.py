@@ -5,7 +5,7 @@ from base import Context, Question
 
 
 class Retriever:
-    def __init__(self, index, k1, b,language="en"):
+    def __init__(self, index, k1=0.9, b=0.4, language="en"):
         self.searcher = SimpleSearcher.from_prebuilt_index(index)
         self.searcher.set_bm25(k1, b)
         self.searcher.object.setLanguage(language)
