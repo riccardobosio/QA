@@ -16,6 +16,9 @@ import argparse
 #from ..utils.squad import SquadExample
 # in alternativa provare a importare la classe
 from transformers.pipelines.question_answering import SquadExample
+from transformers.data.processors.squad import SquadResult
+from transformers.data.metrics.squad_metrics import compute_predictions_logits
+from utils.base import Answer
 
 
 def compute_metrics(start_logits, end_logits, features, examples, max_answer_length=30, n_best=20):
@@ -229,7 +232,7 @@ class BERTModule(tf.Module):
         #print(type(self.tf_train_dataset))
         #quit()
 
-        num_train_epochs = 3
+        num_train_epochs = num_epochs
         num_train_steps = len(self.tf_train_dataset) * num_train_epochs
         optimizer, schedule = create_optimizer(
             init_lr=2e-5,
@@ -256,7 +259,7 @@ class BERTModule(tf.Module):
             predictions["start_logits"],
             predictions["end_logits"],
             self.validation_dataset,
-            self.raw_datasets["validation"],
+            self.raw_dataset["validation"],
         )
 
     def print_data(self):
@@ -290,7 +293,50 @@ class BERTModule(tf.Module):
             threads= 1
         )
 
+        all_results = []
+        for batch in dataset:
+            batch = tuple(t for t in batch)
+            inputs = {
+                "input_ids": batch[0],
+                "attention_mask": batch[1],
+                "token_type_ids": batch[2]
+            }
+            feature_indices = batch[3]
+            outputs = self.model(**inputs)
+            start_logits, end_logits = outputs[0], outputs[1]
+            for i, feature_index in enumerate(feature_indices):
+                eval_feature = features[feature_index.item()]
+                unique_id = int(eval_feature.unique_id)
+                start_logits, end_logits = outputs.start_logits[i].tolist(), outputs.end_logits[i].tolist()
+                result = SquadResult(unique_id, start_logits, end_logits)
+                all_results.append(result)
 
+        answers, n_best = compute_predictions_logits(
+            all_examples=examples,
+            all_features=features,
+            all_results=all_results,
+            n_best_size=20,
+            max_answer_length=64,
+            do_lower_case=True,
+            output_prediction_file=False,
+            output_nbest_file=None,
+            output_null_log_odds_file=None,
+            verbose_logging=1,
+            version_2_with_negative=False,
+            null_score_diff_threshold=0,
+            tokenizer=self.tokenizer
+        )
+
+        all_answers = []
+        for idx, ans in enumerate(n_best):
+            all_answers.append(Answer(
+                text=answers[ans][0],
+                score=answers[ans][1],
+                ctx_score=contexts[idx].score,
+                language="en"
+            ))
+
+        return all_answers
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Define model parameters.')
