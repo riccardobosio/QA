@@ -1,7 +1,7 @@
 # Followed this tutorial to write the code https://huggingface.co/course/chapter7/7?fw=tf
 
 
-from transformers import BertTokenizer, TFBertForQuestionAnswering, TFAutoModelForQuestionAnswering
+from transformers import BertTokenizer, TFBertForQuestionAnswering, TFAutoModelForQuestionAnswering, squad_convert_examples_to_features
 from datasets import load_dataset
 from transformers import AutoTokenizer
 import collections
@@ -13,6 +13,9 @@ from transformers import create_optimizer
 from transformers.keras_callbacks import PushToHubCallback
 import tensorflow as tf
 import argparse
+#from ..utils.squad import SquadExample
+# in alternativa provare a importare la classe
+from transformers.pipelines.question_answering import SquadExample
 
 
 def compute_metrics(start_logits, end_logits, features, examples, max_answer_length=30, n_best=20):
@@ -216,10 +219,16 @@ class BERTModule(tf.Module):
 
         compute_metrics(start_logits, end_logits, self.validation_dataset, self.raw_validate_dataset)
 
-    def train(self):
+    def train(self, num_epochs):
         # The number of training steps is the number of samples in the dataset, divided by the batch size then multiplied
         # by the total number of epochs. Note that the tf_train_dataset here is a batched tf.data.Dataset,
         # not the original Hugging Face Dataset, so its len() is already num_samples // batch_size.
+
+        # DEBUG
+        #print(type(self.validation_dataset))
+        #print(type(self.tf_train_dataset))
+        #quit()
+
         num_train_epochs = 3
         num_train_steps = len(self.tf_train_dataset) * num_train_epochs
         optimizer, schedule = create_optimizer(
@@ -234,9 +243,13 @@ class BERTModule(tf.Module):
         tf.keras.mixed_precision.set_global_policy("mixed_float16")
 
         # add callbacks
-        checkpoint = tf.keras.callbacks.ModelCheckpoint("./model.hdf5", monitor='val_loss', save_best_only=True, verbose=1)
+        # currently is commented beacuse we need to solve a problem related to the loss which is not avaiable
+        #checkpoint = tf.keras.callbacks.ModelCheckpoint("./model.hdf5", monitor='val_loss', save_best_only=True, verbose=1)
         # We're going to do validation afterwards, so no validation mid-training
-        self.model.fit(self.tf_train_dataset, epochs=num_train_epochs, callbacks=[checkpoint])
+        self.model.fit(self.tf_train_dataset, epochs=num_train_epochs) #, callbacks=[checkpoint])
+
+        # maybe I can save using this
+        #self.model.save_weights('./model.hdf5')
 
         predictions = self.model.predict(self.tf_eval_dataset)
         compute_metrics(
@@ -250,18 +263,48 @@ class BERTModule(tf.Module):
         print(self.raw_dataset)
         print(self.raw_train_dataset)
 
+    def predict(self, question, contexts):
+        examples = []
+        for idx, ctx in enumerate(contexts):
+            examples.append(
+                SquadExample(
+                    qas_id=idx,
+                    question_text=question.text,
+                    context_text=ctx.text,
+                    answer_text=None,
+                    start_position_character=None,
+                    title='',
+                    is_impossible=False,
+                    answers=[],
+                    language=ctx.language
+                )
+            )
+
+        features, dataset = squad_convert_examples_to_features(
+            examples=examples,
+            tokenizer=self.tokenizer,
+            max_seq_length=384,
+            max_query_length=64,
+            is_training=False,
+            return_dataset='tf',
+            threads= 1
+        )
+
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Define model parameters.')
-    parser.add_argument('--finetune', type=bool, action='store_true',
+    parser.add_argument('--finetune', action='store_true',
                         help='Flag to decide if a finetuning on Squad is needed.')
     parser.add_argument('--model_path', type=str, default='bert-base-cased',
                         help='Pass the finetuned model path if you do not want to do it again.')
+    parser.add_argument('--num_epochs', type=int, default=3,
+                        help='Number of epochs for finetuning. Used only if --finetune argument is passed.')
 
     args = parser.parse_args()
     bert_module = BERTModule(args.model_path)
     #bert_module.print_data()
     #bert_module.validate()
     if args.finetune:
-        bert_module.train()
+        bert_module.train(num_epochs=args.num_epochs)
     bert_module.validate()
