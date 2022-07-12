@@ -32,5 +32,8 @@ python inference.py --help
 ## Evaluation
 
 If you want to test the pipeline performances, use [evaluation.py](evaluation.py).
+```console
+python evaluation.py --help
+```
 
 ## Examples
