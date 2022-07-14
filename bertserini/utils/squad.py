@@ -92,7 +92,7 @@ def _get_best_indexes(logits, n_best_size):
         best_indexes.append(index_and_score[i][0])
     return best_indexes
 
-def get_final_text(pred_text, orig_text, language="en", verbose_logging=False):
+def get_final_text(pred_text, orig_text, do_lower_case, language="zh", verbose_logging=False):
     """Project the tokenized prediction back to the original text."""
 
     # When we created the data, we kept track of the alignment between original
@@ -336,6 +336,7 @@ def compute_predictions_logits(
 
             nbest.append(_NbestPrediction(text=final_text, start_logit=pred.start_logit, end_logit=pred.end_logit))
         # if we didn't include the empty option in the n-best, include it
+        
         if version_2_with_negative:
             if "" not in seen_predictions:
                 nbest.append(_NbestPrediction(text="", start_logit=null_start_logit, end_logit=null_end_logit))
