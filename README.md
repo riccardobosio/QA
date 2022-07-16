@@ -50,4 +50,4 @@ For example, if you want to answer a question you can run this:
 ```console
 python inference.py --question_text=<INSERT ANSWER> --k=<INSERT NUMBER OF CONTEXTS> --model_path=<INSERT MODEL NAME OR PATH>
 ```
-To use RIDER re-ranking you can just add the argument _--rider_reranking_ when you run _inference.py_ or _evaluation.py_. 
+To use RIDER re-ranking you can just add the argument _--rider_ranking_ when you run _inference.py_ or _evaluation.py_. 
