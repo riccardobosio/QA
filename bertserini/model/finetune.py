@@ -1,21 +1,12 @@
-from transformers import DefaultDataCollator
+import argparse
+import numpy as np
+from datasets import load_metric, load_dataset
 from transformers import AutoModelForQuestionAnswering, AutoTokenizer, TrainingArguments, Trainer
-from datasets import load_dataset
-from transformers.data.metrics.squad_metrics import compute_predictions_log_probs, compute_predictions_logits, \
-    squad_evaluate
-from transformers.data.processors.squad import SquadResult
+import torch
 from tqdm.auto import tqdm
 import collections
-import numpy as np
-from datasets import load_metric
-import argparse
-import torch
 import random
 
-
-# Here you should define a lot of parameters:
-# -> max_lenght
-# -> stride
 
 def preprocess_training_examples(examples, tokenizer):
     questions = [q.strip() for q in examples["question"]]
@@ -116,28 +107,27 @@ def compute_metrics(start_logits, end_logits, features, examples):
         context = example["context"]
         answers = []
 
-        # Loop through all features associated with that example
         for feature_index in example_to_features[example_id]:
             start_logit = start_logits[feature_index]
             end_logit = end_logits[feature_index]
             offsets = features[feature_index]["offset_mapping"]
-            # For each sub-token returned by the tokenizer, the offset mapping gives us a tuple indicating the
-            # sub-token’s start position and end position relative to the original token it was split from
+
             start_indexes = np.argsort(start_logit)[-1: -n_best - 1: -1].tolist()
             end_indexes = np.argsort(end_logit)[-1: -n_best - 1: -1].tolist()
             for start_index in start_indexes:
                 for end_index in end_indexes:
-                    # Skip answers that are not fully in the context
+
+                    # skipping answers if:
                     if offsets[start_index] is None or offsets[end_index] is None:
                         continue
-                    # Skip answers with a length that is either < 0 or > max_answer_length
+
                     if (
                             end_index < start_index
                             or end_index - start_index + 1 > max_answer_length
                     ):
                         continue
 
-                    # We skip the example if it doesn't meet the constraints
+                    # skip the example if:
                     try:
                         answer = {
                             "text": context[offsets[start_index][0]: offsets[end_index][1]],
@@ -148,7 +138,7 @@ def compute_metrics(start_logits, end_logits, features, examples):
                     except:
                         continue
 
-        # Select the answer with the best score
+        # select best answer
         if len(answers) > 0:
             best_answer = max(answers, key=lambda x: x["logit_score"])
             predicted_answers.append(
@@ -177,14 +167,13 @@ if __name__ == '__main__':
     parser.add_argument("--max_answer_length", default=30, type=int)
     parser.add_argument('--squad_perc', default=80.0, type=float, help='The percentage of dataset to consider')
     parser.add_argument('--save_steps', default=500, type=int,
-                        help="frequency w.r.t. global_step to perform evaluation")
-    parser.add_argument('--log_dir', default=None, type=str)
-    parser.add_argument('--checkpoints_dir', default=None, type=str)
-    parser.add_argument('--model_dir', default=None, type=str)
+                        help="When to save the model to output_dir (after how many steps).")
+    parser.add_argument('--log_dir', default=None, type=str, help="Folder where you want to save logs.")
+    parser.add_argument('--output_dir', default=None, type=str, help="Folder where you want to save the checkpoints and the final model and tokenizer.")
+    parser.add_argument('--chkp_dir', default=None, type=str, help="The checkpoint to start training from. Don't pass anything if you want to finetune from scratch.")
 
     args = parser.parse_args()
 
-    # Set seed for reproducibility
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -212,7 +201,7 @@ if __name__ == '__main__':
     )
 
     training_args = TrainingArguments(
-        output_dir=args.checkpoints_dir,
+        output_dir=args.output_dir,
         evaluation_strategy="no",
         save_strategy="steps",
         save_steps=args.save_steps,
@@ -223,7 +212,7 @@ if __name__ == '__main__':
         fp16=True,
         per_device_train_batch_size=args.train_batch_size,
         per_device_eval_batch_size=args.eval_batch_size,
-        logging_dir=args.log_dir,  # directory for storing logs*
+        logging_dir=args.log_dir,
         logging_steps=10
     )
 
@@ -235,10 +224,9 @@ if __name__ == '__main__':
         eval_dataset=validation_dataset,
     )
 
-    # If add_argument is True the trainer will catch the last check-point available from the output-dir
-    if args.model_dir:
+    if args.chkp_dir:
         print('Resuming training from checkpoint...')
-        trainer.train(resume_from_checkpoint=args.checkpoints_dir)
+        trainer.train(resume_from_checkpoint=args.chkp_dir)
     else:
         print("Starting fine-tuning from scratch... \n")
         trainer.train()
@@ -249,7 +237,7 @@ if __name__ == '__main__':
     results = compute_metrics(start_logits, end_logits, validation_dataset, raw_datasets["validation"])
     print(results)
 
-    if args.checkpoints_dir:
-        # trainer.save_model(output_dir=args.checkpoints_dir)
-        model.save_pretrained(args.checkpoints_dir)
-        tokenizer.save_pretrained(args.checkpoints_dir)
+    # save the final model and tokenizer
+    if args.output_dir:
+        model.save_pretrained(args.output_dir)
+        tokenizer.save_pretrained(args.output_dir)

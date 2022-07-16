@@ -12,28 +12,13 @@ class BERT:
         self.model = AutoModelForQuestionAnswering.from_pretrained(model_name).to(self.device).eval()
         if tokenizer_name is None:
             tokenizer_name = model_name
-        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, do_lower_case=True)
-        self.args = {
-            "max_seq_length": 384,
-            "doc_stride": 128,
-            "max_query_length": 64,
-            "threads": 1,
-            "tqdm_enabled": False,
-            "n_best_size": 20,
-            "max_answer_length": 30,
-            "do_lower_case": True,
-            "output_prediction_file": False,
-            "output_nbest_file": None,
-            "output_null_log_odds_file": None,
-            "verbose_logging": False,
-            "version_2_with_negative": True,
-            "null_score_diff_threshold": 0,
-        }
+        self.tokenizer_name = tokenizer_name
 
     def predict(self, question, contexts):
-        tokenizer = self.tokenizer
         model = self.model
-        model.to(self.device)
+        tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name, use_fast=False)
+        device = self.device
+        model.to(device)
 
         examples = []
         for idx, ctx in enumerate(contexts):
@@ -68,7 +53,7 @@ class BERT:
         all_results = []
         for batch in eval_dataset:
             model.eval()
-            batch = tuple(t.to(self.device) for t in batch)
+            batch = tuple(t.to(device) for t in batch)
             with torch.no_grad():
                 inputs = {
                     "input_ids": batch[0],
@@ -89,7 +74,7 @@ class BERT:
             all_examples=examples,
             all_features=features,
             all_results=all_results,
-            n_best_size=20,
+            n_best_size=10,
             max_answer_length=64,
             do_lower_case=True,
             output_prediction_file=False,
@@ -100,7 +85,7 @@ class BERT:
             null_score_diff_threshold=0,
             tokenizer=tokenizer
         )
-
+        
         all_answers = []
         for idx, ans in enumerate(n_best):
             all_answers.append(Answer(
