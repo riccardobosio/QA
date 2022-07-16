@@ -4,18 +4,13 @@ This is the workflow of the BERTserini QA system:
 
 ![workflow](fig/BERTserini_workflow.png)
 
-In this project we investigate and reproduce
+In this project we reproduce
 an end-to-end open-domain Question Answering system: BERTserini. It integrates a
 BERT reader with the open-source Anserini information retrieval
 toolkit built on top of the popular open-source Lucene search
 engine. The BERT model is fine-tuned on [SQuAD](https://arxiv.org/abs/1606.05250), a reading
 comprehension dataset, consisting of questions+answers pairs
-posed on a set of Wikipedia articles. 
-Moreover we propose
-and test three other BERT-based reader models: RoBERTa,
-ALBERT and SpanBERT. 
-Finally we introduce a new re-ranking
-strategy for retrieved contexts based on RIDER. 
+posed on a set of Wikipedia articles.
 
 ## Installation
 
@@ -50,6 +45,7 @@ python evaluation.py --help
 ```
 
 ## Examples
+
 For example, if you want to answer a question you can run this:
 ```console
 python inference.py --question_text=<INSERT ANSWER> --k=<INSERT NUMBER OF CONTEXTS> --model_path=<INSERT MODEL NAME OR PATH>
