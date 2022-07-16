@@ -19,11 +19,15 @@ class BERTserini:
 
     def answer(self, weight):
         possible_answers = self.reader.predict(self.question, self.contexts)
-        # added the following only for rider experiments
-        self.all_answers = possible_answers
-        answer = get_best_answer(possible_answers, weight)
+        
+        answer = get_best_answer(possible_answers, weight)[0]
         pred_answer = {'id': self.question.id, 'prediction_text': answer.text}
         return pred_answer
+
+    def get_top_n_answers(self, weight, N=10):
+      possible_answers = self.reader.predict(self.question, self.contexts)
+      top_n_answers = get_best_answer(possible_answers, weight, N)
+      return top_n_answers
 
     def get_question(self):
         return self.question
