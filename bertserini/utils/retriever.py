@@ -15,11 +15,9 @@ class Retriever:
         contexts = []
         for i in range(0, len(hits)):
             id = hits[i].docid
-            print(f"Context id: {id}\n")
             score = hits[i].score
             document = self.searcher.doc(hits[i].docid)
             text = document.raw()
-            print(document.raw())
             language = 'en'
             parag = Context(id, score, text, language)
             contexts.append(parag)

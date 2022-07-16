@@ -1,10 +1,7 @@
 import collections
 import json
-import logging
 from transformers import AutoTokenizer, AutoModelForQuestionAnswering, squad_convert_examples_to_features
-
-
-logger = logging.getLogger(__name__)
+import logging
 
 
 def _is_whitespace(c):
@@ -12,6 +9,7 @@ def _is_whitespace(c):
         return True
     return False
 
+logger = logging.getLogger(__name__)
 
 class SquadExample:
     """
@@ -79,7 +77,6 @@ class SquadExample:
             self.end_position = char_to_word_offset[
                 min(start_position_character + len(answer_text) - 1, len(char_to_word_offset) - 1)
             ]
-
 
 def _get_best_indexes(logits, n_best_size):
     """Get the n-best logits from a list."""
@@ -186,7 +183,6 @@ def get_final_text(pred_text, orig_text, do_lower_case, language="zh", verbose_l
 
     output_text = orig_text[orig_start_position : (orig_end_position + 1)]
     return output_text
-
 
 def compute_predictions_logits(
     all_examples,
@@ -308,12 +304,6 @@ def compute_predictions_logits(
 
                 tok_text = tokenizer.convert_tokens_to_string(tok_tokens)
 
-                # tok_text = " ".join(tok_tokens)
-                #
-                # # De-tokenize WordPieces that have been split off.
-                # tok_text = tok_text.replace(" ##", "")
-                # tok_text = tok_text.replace("##", "")
-
                 # Clean whitespace
                 tok_text = tok_text.strip()
                 if language == "zh":
@@ -335,7 +325,6 @@ def compute_predictions_logits(
                 seen_predictions[final_text] = True
 
             nbest.append(_NbestPrediction(text=final_text, start_logit=pred.start_logit, end_logit=pred.end_logit))
-        # if we didn't include the empty option in the n-best, include it
         
         if version_2_with_negative:
             if "" not in seen_predictions:
@@ -361,6 +350,7 @@ def compute_predictions_logits(
                 if entry.text:
                     best_non_null_entry = entry
 
+        # NO SOFTMAX
         # probs = _compute_softmax(total_scores)
         probs = total_scores
 
@@ -405,7 +395,8 @@ def compute_predictions_logits(
 
     return all_predictions, all_nbest_json
 
-def get_best_answer(candidates, weight=0.5):
+# N is the number of best answers I want
+def get_best_answer(candidates, weight=0.5, N=1):
     for ans in candidates:
         ans.aggregate_score(weight)
-    return sorted(candidates, key=lambda x: x.total_score, reverse=True)[0]
+    return sorted(candidates, key=lambda x: x.total_score, reverse=True)[:N]
