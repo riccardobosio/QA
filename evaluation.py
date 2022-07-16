@@ -6,7 +6,7 @@ from bertserini.utils.rider import rerank
 
 
 def evaluate(model_path, num_val_examples):
-    bertserini = BERTserini(model_path) # we can specify another index here
+    bertserini = BERTserini(model_path)
     squad = load_dataset("squad")
     metric = load_metric("squad")
     indexes = np.random.uniform(low=0, high=squad["validation"].num_rows, size=num_val_examples)
@@ -22,12 +22,13 @@ def evaluate(model_path, num_val_examples):
           print('Contexts before re-ranking:')
           for ctx in all_contexts[:args.k]:
             print(ctx.text)
+          bertserini.contexts = all_contexts[:args.k]
           answer = bertserini.answer(args.weight)
           print('-------')
           print('Answer before re-ranking')
           print(answer['prediction_text'])
-          all_answers = bertserini.all_answers
-          reranked_contexts = rerank(all_contexts, args.k, all_answers)
+          top_N_answers = bertserini.get_top_n_answers(args.weight, N=5)
+          reranked_contexts = rerank(all_contexts, args.k, top_N_answers)
           print('-------')
           print('Contexts after re-ranking')
           for ctx in reranked_contexts:
